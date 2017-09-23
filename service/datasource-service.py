@@ -1,6 +1,7 @@
 from functools import wraps
 from flask import Flask, request, Response, abort
 from datetime import datetime, timedelta
+from dateutil.parser import parse
 import os
 
 import json
@@ -14,6 +15,13 @@ app = Flask(__name__)
 
 logger = None
 
+def datetime_format(dt):
+    return '%04d' % dt.year + dt.strftime("-%m-%dT%H:%M:%SZ")
+
+
+def to_transit_datetime(dt_int):
+    return "~t" + datetime_format(dt_int)
+
 class DataAccess:
     def __init__(self):
         self._entities = {"Activity": [], "Contact": [], "Account": [], "Lead": [], "Task": [], "Event": [], "Group": [], "Opportunity": [], "User": [], "EventRelation": [], "Case": []}
@@ -21,6 +29,9 @@ class DataAccess:
     def get_entities(self, since, datatype, sf):
         if not datatype in self._entities:
             abort(404)
+        if self._entities[datatype] == []:
+            fields = getattr(sf, datatype).describe()["fields"]
+            self._entities[datatype] = fields
         if since is None:
             return self.get_entitiesdata(datatype, since, sf)
         else:
@@ -57,10 +68,16 @@ class DataAccess:
                 c.update({"_id": e})
                 c.update({"_updated": "%s" % c["LastModifiedDate"]})
 
+                for property, value in c.items():
+                    schema = [item for item in self._entities[datatype] if item["name"] == property]
+                    if value and len(schema) > 0 and "type" in schema[0] and schema[0]["type"] == "datetime":
+                        c[property] = to_transit_datetime(parse(value))
+
+
                 entities.append(c)
 
-        self._entities[datatype] = entities
-        return self._entities[datatype]
+
+        return entities
 
 data_access_layer = DataAccess()
 
@@ -177,7 +194,8 @@ def transform(datatype, entities, sf):
                 del(e[p])
             if "Id" in e:
                 del (e["Id"])
-            getattr(sf, datatype).update(c["Id"], e)
+            if c:
+                getattr(sf, datatype).update(c["Id"], e)
 
 
 if __name__ == '__main__':

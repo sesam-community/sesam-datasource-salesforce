@@ -10,10 +10,7 @@ from simple_salesforce import Salesforce
 import iso8601
 import logging
 from collections import OrderedDict
-
-app = Flask(__name__)
-
-logger = None
+import time
 
 
 
@@ -23,15 +20,43 @@ from threading import Thread
 from aiosfstream import SalesforceStreamingClient
 
 
+"""
+## Supperted queries (per 23.01.20 if setup)
+
+- Account
+- Campaign
+- Case
+- Contact
+- ContractLineItem
+- Entitlement
+- Lead
+- LiveChatTranscript
+- Opportunity
+- Quote
+- QuoteLineItem
+- ServiceAppointment
+- ServiceContract
+- Task
+- WorkOrder
+- WorkOrderLineItem
+
+https://developer.salesforce.com/docs/atlas.en-us.api_streaming.meta/api_streaming/supported_soql.htm
+"""
+
+
+
+
+app = Flask(__name__)
+
+logger = None
 
 thread = Thread()
+
+
 
 class Stream(Thread):
     def __init__(self):
         super(Stream, self).__init__()
-
-
-
 
     def start_stream(self):
 
@@ -43,35 +68,36 @@ class Stream(Thread):
         self.start_stream()
 
 
-
     async def stream_events(self):
 
         client =  SalesforceStreamingClient(
-        consumer_key="<Consumer key>",
-        consumer_secret="<Consumer secret>",
-        username="<Username>",
-        password="<Password>",
+        consumer_key=os.environ['consumerKey'],
+        consumer_secret=os.environ['consumerSecret'],
+        username=os.environ['clientUsername'],
+        password=os.environ['clientPassword'],
         sandbox=True)
 
 
-        await client.open()# subscribe to topics
-        await client.subscribe("/topic/<>")
-        await client.subscribe("/topic/<>")
+        await client.open()
+        # subscribe to topics - add more topics here if streams are updated
+        await client.subscribe("/topic/Account")
+        await client.subscribe("/topic/Contact")
 
 
         message = await client.receive()
+
 
         return message
 
 
     def get_ent(self,ent):
-        #print(ent[0]['data']['event']['type'])
+
         global liste
         if ent[0]['data']['event']['type'] == 'deleted':
             ent[0]['data']['event']['LastModifiedDate'] = datetime_format(datetime.now(pytz.UTC))
         liste.extend(ent)
-        #liste = liste[:-256000]
-        #print(liste[-1])
+        if len(liste) > 500000:
+            liste = [{'ListTimestamp': datetime.now(pytz.UTC)}]
 
     def run(self):
         self.start_stream()
@@ -93,58 +119,41 @@ class DataAccess:
             abort(404)
 
 
-        if since is None:
-            return self.get_entitiesdata(datatype, since, sf)
-        else:
-            return self.get_entitiesdata(datatype, since, sf)#[entity for entity in self.get_entitiesdata(datatype, since, sf) if entity["_updated"] > since]
+
+        return self.get_entitiesdata(datatype, since, sf)
 
     def get_entitiesdata(self, datatype, since, sf):
-        # if datatype in self._entities:
-        #     if len(self._entities[datatype]) > 0 and self._entities[datatype][0]["_updated"] > "%sZ" % (datetime.now() - timedelta(hours=12)).isoformat():
-        #        return self._entities[datatype]
+
         now = datetime.now(pytz.UTC)
         entities = []
         end = datetime.now(pytz.UTC)  # we need to use UTC as salesforce API requires this
-        since = '2020-01-24T14:27:48.711Z'
-        if since is None:# start < min(liste[datatype].values()) :
-            #fields = getattr(sf, datatype).describe()["fields"]
+
+        if since is None or iso8601.parse_date(since) < liste[0]['ListTimestamp']:
+
             result = [x['Id'] for x in sf.query("SELECT Id FROM %s" % (datatype))["records"]]
+
         else:
 
-            returned = liste
+            returned = liste[1:]
+            if len(returned) == 0: return []
 
             result,deleted = {},{}
             result[datatype] = {}
             deleted[datatype] = {}
-            result[datatype] = {returned[i]['data']['sobject']['Id']:iso8601.parse_date(returned[i]['data']['sobject']['LastModifiedDate']) for i in range(len(liste)) if returned[i]['data']['event']['type'] in ['updated','created'] and returned[i]['channel'].split('/')[-1] == datatype }
-            deleted[datatype] = {returned[i]['data']['sobject']['Id']:iso8601.parse_date(returned[i]['data']['event']['LastModifiedDate']) for i in range(len(liste)) if returned[i]['data']['event']['type'] in ['deleted'] and returned[i]['channel'].split('/')[-1] == datatype }
-        if since:
-            since = iso8601.parse_date(since)
-            print(len(result[datatype]))
-            if len(result[datatype]) > 0:
-                print('in leq test',min(result[datatype].values()))
-                if since < min(result[datatype].values()):
-                    print('in since')
-                    result = [x['Id'] for x in sf.query("SELECT Id FROM %s" % (datatype))["records"]]
-            else:
-                result = [x['Id'] for x in sf.query("SELECT Id FROM %s" % (datatype))["records"]]
+            result[datatype] = {returned[i]['data']['sobject']['Id']:iso8601.parse_date(returned[i]['data']['sobject']['LastModifiedDate']) for i in range(len(returned)) if returned[i]['data']['event']['type'] in ['updated','created'] and returned[i]['channel'].split('/')[-1] == datatype }
+            deleted[datatype] = {returned[i]['data']['sobject']['Id']:iso8601.parse_date(returned[i]['data']['event']['LastModifiedDate']) for i in range(len(returned)) if returned[i]['data']['event']['type'] in ['deleted'] and returned[i]['channel'].split('/')[-1] == datatype }
+            [result[datatype].pop(i) for i in list(deleted[datatype].keys()) if i in result[datatype].keys()]
 
-
-                #if getattr(sf, datatype):
-                #    if end > (start + timedelta(seconds=60)):
-                #        result = getattr(sf, datatype).updated(start, end)["ids"]
-                #        deleted = getattr(sf, datatype).deleted(start, end)["deletedRecords"]
 
 
         try: deleted
         except NameError: deleted = None
         if deleted != None:
-            print('in deltet')
-            deleted = {k:v for (k,v) in deleted[datatype].items() if v > since}
+
+            deleted = {k:v for (k,v) in deleted[datatype].items() if v > iso8601.parse_date(since)}
             for ids,time in deleted.items():
 
                 c = OrderedDict({"_id": ids})
-                # c = {k: v for k, v in c.items() if v}
                 c.update({"_updated": "%s" % time})
                 c.update({"_deleted": True})
 
@@ -154,24 +163,19 @@ class DataAccess:
         except NameError: result = None
         if result != None:
             if type(result) == type(dict()):
-                result = list({k:v for (k,v) in result[datatype].items() if v > since}.keys())
+                result = list({k:v for (k,v) in result[datatype].items() if v > iso8601.parse_date(since)}.keys())
                 if self._entities[datatype] == []:
                     fields = getattr(sf, datatype).describe()["fields"]
                     self._entities[datatype] = fields
 
                 if len(result) < 1:
-                    return []
-            if len(result) == 1:
-                result = [getattr(sf,datatype).get(result[0])]
-            else:
-                cols = (',').join(list(getattr(sf,datatype).get(result[0]))[1:])
-                result = sf.query("SELECT {} FROM {} WHERE Id in ('{}')".format(cols,datatype,("','").join(result)))['records']
+                    return entities
+
+            cols = (',').join(list(getattr(sf,datatype).get(result[0]))[1:])
+            result = sf.query("SELECT {} FROM {} WHERE Id in ('{}')".format(cols,datatype,("','").join(result)))['records']
 
 
             for e in result:
-
-                #c = getattr(sf, datatype).get(e)
-                #c = {k: v for k, v in c.items() if v}
 
                 e.update({"_id": e['Id']})
                 e.update({"_updated": "%s" % e["LastModifiedDate"]})
@@ -236,6 +240,7 @@ def get_entities(datatype):
     token, username = auth.username.split('\\', 1)
     password = auth.password
     logger.info("User = %s" % (auth.username))
+    #print(since)
 
     sf = Salesforce(username, password, token, sandbox=use_sandbox)
     entities = sorted(data_access_layer.get_entities(since, datatype, sf), key=lambda k: k["_updated"])
@@ -328,7 +333,8 @@ def transform(datatype, entities, sf):
 
 if __name__ == '__main__':
 
-    liste = []
+
+    liste = [{'ListTimestamp': datetime.now(pytz.UTC)}]
     # Set up logging
     format_string = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     logger = logging.getLogger('salesforce-microservice')
@@ -341,6 +347,7 @@ if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
 
     thread = Stream()
+    thread.setDaemon(True)
     thread.start()
 
     app.run(debug=True, host='0.0.0.0')

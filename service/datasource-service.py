@@ -232,7 +232,7 @@ def get_entities(datatype):
     global liste
     since = request.args.get('since')
     instance = get_var('instance') or "prod"
-    use_sandbox = True
+    use_sandbox = False
     if instance == "sandbox":
         use_sandbox = True
         logger.info("Using sandbox")
@@ -240,7 +240,6 @@ def get_entities(datatype):
     token, username = auth.username.split('\\', 1)
     password = auth.password
     logger.info("User = %s" % (auth.username))
-    #print(since)
 
     sf = Salesforce(username, password, token, sandbox=use_sandbox)
     entities = sorted(data_access_layer.get_entities(since, datatype, sf), key=lambda k: k["_updated"])
@@ -259,7 +258,7 @@ def receiver(datatype):
     app.logger.info("Updating entity of type %s" % (datatype))
     app.logger.debug(json.dumps(entities))
     instance = get_var('instance') or "prod"
-    use_sandbox = True
+    use_sandbox = False
     if instance == "sandbox":
         use_sandbox = True
         logger.info("Using sandbox")

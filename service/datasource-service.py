@@ -275,8 +275,70 @@ def receiver(datatype):
 
 """
 TODO:
-Set up bulk updates to salesfoce to minimize query numbers
+Test transform_bulk function
 """
+
+def transform_bulk(datatype, entities, sf):
+    global ids
+    # create output directory
+    c = None
+    listing = []
+    if not isinstance(entities, (list)):
+        listing.append(entities)
+    else:
+        listing = entities
+    delete_ids = []
+    new_ents = []
+    update_ents = []
+    sf_ids = {x['Id']:x['sesam_id__c'] for x in sf.query('Select Id, sesam_id__c FROM Account')['records']}
+    for e in listing:
+        if "_deleted" in e and e["_deleted"] :
+            if "Id" in e:
+                app.logger.info("Deleting entity %s of type %s" % (e["Id"],datatype))
+                delete_ids.extend({'Id':e['Id']})
+                #try:
+                    #getattr(sf, datatype).delete(c["Id"])
+                #except Exception as err:
+                    #app.logger.info("Entity %s of type %s does not exist. Ignoring error: %s..." % (e["Id"], datatype, type(err)))
+                    #pass
+        #app.logger.info("Updateing entity internal id %s of type %s" % (e["_id"], datatype))
+        #del e["_id"]
+        if not ("_deleted" in e and e["_deleted"]) and (e['Id'] not in sf_ids.keys() or e['sesam_id__c'] not in sf_ids.values()):
+            #if "Id" in e:
+                #app.logger.debug("Getting entity %s of type %s" % (e["Id"], datatype))
+                #c = getattr(sf, datatype).get(e["Id"])
+            #if not c and "sesam_id__c" in e:
+                #try:
+                    #c = getattr(sf, datatype).get_by_custom_id("sesam_id__c", e["sesam_id__c"])
+                #except:
+                    #pass
+            #if not c:
+            d = []
+            for p in e.keys():
+                if p.startswith("_"):
+                    d.append(p)
+            for p in d:
+                del(e[p])
+            if "Id" in e:
+                del (e["Id"])
+            new_ents.extend(e)
+            #getattr(sf, datatype).create(e)
+        else:
+            d = []
+            for p in e.keys():
+                if p.startswith("_"):
+                    d.append(p)
+            for p in d:
+                del(e[p])
+            if "Id" in e:
+                del (e["Id"])
+
+            update_ents.extend(e)
+
+
+        getattr(sf.bulk,datatype).delete(delete_ents)
+        getattr(sf.bulk,datatype).update(update_ents)
+        getattr(sf.bulk,datatype).create(new_ents)
 
 def transform(datatype, entities, sf):
     global ids

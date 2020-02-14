@@ -102,9 +102,11 @@ insert pushTopic;
   "authentication": "basic",
   "docker": {
     "environment": {
+      "INSTANCE": false,
+      "clientPassword": "$SECRET(clientPassword)",
+      "clientUsername": "$SECRET(clientUsername)",
       "consumerKey": "$SECRET(consumerKey)",
-      "consumerSecret": "$SECRET(consumerSecret)",
-      "INSTANCE": false
+      "consumerSecret": "$SECRET(consumerSecret)"
     },
     "image": "daniehj/salesforce-connector:bulk4",
     "port": 5000

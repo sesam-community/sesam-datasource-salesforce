@@ -40,7 +40,7 @@ The connector uses two different modules, they use two different authentication 
 
 If you don't have a security token, you need to login to salesforce and reset your security token, this is done by:
 
-1. Open a browser and navigate to [Salesforce](https://https://login.salesforce.com)(If you going to use sandbox, login to [Salesforce sandbox](https://https://test.salesforce.com).
+1. Open a browser and navigate to [Salesforce](https://https://login.salesforce.com) (If you going to use sandbox, login to [Salesforce sandbox](https://https://test.salesforce.com)).
 
 2. Select **Your user -> Settings -> My Personal Information -> Reset My Security Token**. Press **Reset security** button, the security token will now be visible, but keep in mind that the old token is now useless, and if you change page again, the security token will disappear.
 

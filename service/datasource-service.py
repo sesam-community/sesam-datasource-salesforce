@@ -69,7 +69,6 @@ class Stream(Thread):
 
 
     async def stream_events(self):
-
         client =  SalesforceStreamingClient(
         consumer_key=os.environ['consumerKey'],
         consumer_secret=os.environ['consumerSecret'],

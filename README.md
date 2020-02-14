@@ -31,6 +31,11 @@ See the [Salesforce Developer Limits and Allocations Quick Reference](https://de
 
 Check Supported [PushTopic Queries](https://developer.salesforce.com/docs/atlas.en-us.api_streaming.meta/api_streaming/supported_soql.htm)
 
+# Authentication
+
+The connector uses two different modules, they use two different authentication modules, so as of now, we need two different authentication setup.
+
+
 ## Generate token for Basic login
 
 If you don't have a security token, you need to login to salesforce and reset your security token, this is done by:
@@ -45,11 +50,16 @@ If you don't have credentials for OAuth 2.0 authorization, you need to make an c
 
 1. Choose **Options -> Setup -> App Manager**. In the rightupper corner press **New Connected App** .
 
-2. Fill in the required informatin fields.
+2. Fill in the required informatin fileds
+  - Connected App Name : Name of the app (Do not need to match your connector name)
+  - API Name : Name of API (Do not need to match your connector API name)
+  - Contact Email : Some e-mail
 
 3. Now you need to check the **Enable OAuth settings** radio button.
+  - Callback URL : If you press the **Enable for Device Flow** an example URL shows up, this can be used, or you can use example https://test.salesforce.com
+  - Selected OAuth Scope : Full access (full)
 
-4. Fill in the required information fields, and press **Save**. Now you get a new window with the "consumer key" and the "consumer secret"
+4. Fill in the required information fields and press **Save**. Now you get a new window with the "consumer key" and the "consumer secret"
 
 5. You might need to relax on som policies, after you have made your connected app, you will see it in the **App Manager**, push the **downarrow** button on the right an choose **Manage**. On the top of this screen, push the **Edit Policies** button and change the **Permitted Users** to "All users may self-authorize" and change the **IP Relaxation** to "Relax IP restriction"
 
@@ -65,6 +75,9 @@ To create a pushTopic for the streaming API to listen to, you need to make a pus
 3. From here you choose **Debug -> Open Execute Anonymous Window**
 
 4. Use this code snippet to make a topic:
+* There are two things to take notice here, the .Name and the .Query
+  - The .Name are the name of the topic, and would be the name of the topic that you need to subscribe to from the connector, this also need to be unique, so change this according to what topic you are listening to, in this example 'Account' would be the topic listening to.
+  - The .Query is in this example subscribing on changes in the Account table. This means that when adding a new topic, the table name after the FROM statment needs to be the table that you would subscribe to. See the [Reference: PushTopic](https://developer.salesforce.com/docs/atlas.en-us.api_streaming.meta/api_streaming/pushtopic.htm) for more information.
 
 ```
 PushTopic pushTopic = new PushTopic();
@@ -81,10 +94,6 @@ insert pushTopic;
 
 5. Push **Execute**
 
-The .Name is the name you will listen to from the connector, and the .Query is the information you will get from the stream.
-
-See the [Reference: PushTopic](https://developer.salesforce.com/docs/atlas.en-us.api_streaming.meta/api_streaming/pushtopic.htm) for more information.
-
 ## Example of Sesam system config
 ```
 {
@@ -93,11 +102,9 @@ See the [Reference: PushTopic](https://developer.salesforce.com/docs/atlas.en-us
   "authentication": "basic",
   "docker": {
     "environment": {
-      "clientPassword": "$SECRET(clientPassword)",
-      "clientUsername": "$SECRET(clientUsername)",
       "consumerKey": "$SECRET(consumerKey)",
       "consumerSecret": "$SECRET(consumerSecret)",
-      "instance": true
+      "INSTANCE": false
     },
     "image": "daniehj/salesforce-connector:bulk4",
     "port": 5000
@@ -129,7 +136,7 @@ The  pipe below shows how to get from salesforce through the microservice in the
     "type": "json",
     "system": "salesforce-connector",
     "supports_since": true,
-    "url": "/Contact?since=2020-01-29T13:05:40.711Z"
+    "url": "/Account"
   },
   "transform": {
     "type": "dtl",

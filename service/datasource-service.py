@@ -24,7 +24,7 @@ def to_transit_datetime(dt_int):
 
 class DataAccess:
     def __init__(self):
-        self._entities = {"Activity": [], "Contact": [], "Account": [], "Lead": [], "Task": [], "Event": [], "Group": [], "Opportunity": [], "User": [], "EventRelation": [], "Case": []}
+        self._entities = {"Activity": [], "Contact": [], "Account": [], "Lead": [], "Task": [], "Event": [], "Group": [], "Opportunity": [], "User": [], "EventRelation": [], "Case": [], "Campaign": [],"CampaignMember": []}
 
     def get_entities(self, since, datatype, sf):
         if not datatype in self._entities:

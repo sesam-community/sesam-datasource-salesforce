@@ -47,7 +47,7 @@ class DataAccess:
 
         if since is None:
             #fields = getattr(sf, datatype).describe()["fields"]
-            result = [x['Id'] for x in sf.query("SELECT Id FROM %s" % (datatype))["records"]]
+            result = [x['Id'] for x in sf.query_all("SELECT Id FROM %s" % (datatype))["records"]]
         else:
             start = iso8601.parse_date(since)
             if getattr(sf, datatype):
@@ -120,7 +120,11 @@ def get_entities(datatype):
     token, username = auth.username.split('\\', 1)
     password = auth.password
     logger.info("User = %s" % (auth.username))
-    sf = Salesforce(username, password, token, sandbox=use_sandbox)
+    if use_sandbox:
+        sf = Salesforce(username, password, token, domain='test')
+    else:
+        sf = Salesforce(username, password, token)
+
     entities = sorted(data_access_layer.get_entities(since, datatype, sf), key=lambda k: k["_updated"])
 
     return Response(json.dumps(entities), mimetype='application/json')
@@ -142,7 +146,10 @@ def receiver(datatype):
     auth = request.authorization
     logger.info("User = %s" % (auth.username))
     token, username = auth.username.split('\\', 1)
-    sf = Salesforce(username, auth.password, token, sandbox=use_sandbox)
+    if use_sandbox:
+        sf = Salesforce(username, auth.password, token, domain='test')
+    else:
+        sf = Salesforce(username, auth.password, token)
 
 
     if getattr(sf, datatype):
